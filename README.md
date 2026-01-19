@@ -3,9 +3,9 @@
 ![Python Version](https://img.shields.io/badge/python-3.10-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**DC-RAG** (Dumb-Compact RAG) 是一个极简的检索增强生成（RAG）框架。
+**KKSRAG** (KaKaXi RAG) 是一个极简的检索增强生成（RAG）框架。
 
-相较于 LightRAG 等功能强大的工业级解决方案，DC-RAG 在功能上有所欠缺，但其核心优势在于**零外部依赖**和**纯 Python 部署**。
+相较于 LightRAG 等功能强大的工业级解决方案，KKSRAG 在功能上有所欠缺，但其核心优势在于**零外部依赖**和**纯 Python 部署**。
 
 它无需安装 Elasticsearch、Neo4j 等复杂的数据库环境，内置了轻量级的搜索引擎，专为解决个人开发调试或学术研究中的小型测试需求而生。
 
@@ -21,13 +21,13 @@
 
 目前的 RAG 生态中，像 LightRAG 这样的框架非常优秀，具备知识图谱融合和高并发能力。但对于**个人测试**或**学术原型验证**来说，它们往往过于“重”了。
 
-| 特性 | DC-RAG | LightRAG / 其他工业框架 |
+| 特性 | KKSRAG | LightRAG / 其他工业框架 |
 | :--- | :--- | :--- |
 | 部署难度 | 极低 (仅需 Python 环境) | 中/高 (需配置 ES/Neo4j 等) |
 | 外部依赖 | 少 (自带搜索引擎) | 多 (依赖向量库/图数据库) |
 | 适用场景 | 个人笔记、代码调试、小规模论文实验 | 企业生产环境、大规模知识库 |
 
-**核心优势**：DC-RAG 牺牲了一些高级功能（如知识图谱自动构建、极致的召回率优化），换来了**极度的便携性**。
+**核心优势**：KKSRAG 牺牲了一些高级功能（如知识图谱自动构建、极致的召回率优化），换来了**极度的便携性**。
 
 ## 快速开始
 
@@ -36,8 +36,8 @@
 #### 通过 pip 安装
 
 ```bash
-git clone https://github.com/xyp-carry/DCRAG.git
-cd DCRAG
+git clone https://github.com/xyp-carry/KKSRAG.git
+cd KKSRAG
 pip install -r requirements.txt
 ```
 
