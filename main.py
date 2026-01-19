@@ -1,106 +1,256 @@
-from llm.LLMs import LLMs
-import llm.Prompt as Prompt
+import sqlite3
+import struct
+import numpy as np
 import json
-from docx import Document
-from tqdm import tqdm
+import math
+import os
+from KKSrag.KKSContentDB import KKSContentDB
+from KKSrag.KKStool import KKSTokenizer, FileReader, KKSEmbedding
+from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
-from database.es_searcher import ES_Search
+from KKSrag.KKSrag import KKSRag
+from uuid import uuid4
+import asyncio
 
-from DChandler.DCwx import DCwx
+Tokenizer = KKSTokenizer()
+FileReader = FileReader()
+Embedding = KKSEmbedding()
+config_file = "config/config.json"
+with open(config_file, "r") as f:
+    config = json.load(f)
 
 
-class Base_RAG():
-    def __init__(
-            self, 
-            data_path: str = "http://localhost:9200", 
-            database: str = 'elasticsearch',
-            base_url:str = 'https://open.bigmodel.cn/api/paas/v4/', 
-            api_key:str = '', 
-            model:str = 'glm-4-flash-250414', 
-            _async:bool = True
-        ):
-        self.data_path = data_path
-        self.database = database 
-        self._async = _async
-        self.llm = LLMs(api_key= api_key,base_url = base_url, model = model, _async = _async)
-        if self.database not in ['elasticsearch']:
-            raise TypeError("数据库类型仅支持[elasticsearch]")
-        if self.database == 'elasticsearch':
-           self.search_client = ES_Search(data_path, self.database)
 
-    #进行对话(异步模式)
-    async def Asycchat(
-            self, 
-            question: str, 
-            qtype:str = 'normal', 
-            prompt:str = "", 
-            arg_dict:dict = {}, 
-            stream:str=True
-        ):
-        respose = await self.llm.Asycchat(question = question, 
-                                          qtype=qtype, 
-                                          prompt = prompt,
-                                          stream = stream, 
-                                          arg_dict = arg_dict)
-        await respose
+class DataInfo(BaseModel):
+    filedir: str = ""
+    data: list = []
+    query: str = ""
+    Usembedding: bool = False
+    stream: bool = True
+    # file: UploadFile = File(...)
 
-    #进行对话(同步模式)
-    def chat(self, question: str, qtype:str = 'normal', prompt:str = "", arg_dict:dict = {}, stream:str=True):
-        respose = self.llm.chat(question = question, qtype=qtype, prompt = prompt,stream = stream, arg_dict = arg_dict)
-        return respose
-    
 
-    # 提供文档切割的接口
-    def file_split(self, filepath:str):
-        if filepath.endswith('.docx'):
-            file = Document(filepath)
-            text = []
-            chunk = []
-            for element in tqdm(file.element.body):
-                if element.tag.endswith('p'):
-                    # 
-                    arg = {
-                        'documnet':''.join(text),
-                        'sentence':element.text
-                    }
-                    res = self.chat(qtype = 'custom', prompt=Prompt.TITLE_IDENTIFICATION, question=Prompt.TITLE_IDENTIFICATION_USER,arg_dict = arg,stream = False)
-                    if json.loads(res.to_json())['choices'][0]['message']['content'] == '正文':
-                        text.append(element.text+'\n')
-                    else:
-                        chunk.append(''.join(text[:-1]))
-                        text = []
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有来源（开发环境可以用）
+    allow_credentials=True,
+    allow_methods=["*"],  # 允许所有 HTTP 方法
+    allow_headers=["*"],  # 允许所有请求头
+)
 
-                if element.tag.endswith('tbl'):
-                    table_c = 0
-                    for row in element.tr_lst:
-                        for tc in row.tc_lst:
-                            for p in tc.p_lst:
-                                if table_c == 0:
-                                    text.append(p.text+' | ')
-                        text.append('\n')
-            return chunk
-        elif filepath.endswith('.pdf'):
-            pass
+
+
+tasklist = {}
+
+@app.get("/tables")
+async def get_tables():
+    knowledgelist = []
+    dirpath = "db"
+    filenames = os.listdir(dirpath)
+    for filename in filenames:
+        knowledgelist.append((filename.split(".")[0], os.path.join(dirpath, filename)))
+    return {"tables": knowledgelist}
+
+
+@app.post("/get_embedding")
+async def get_embedding(request: DataInfo):
+    ad = KKSContentDB(Tokenizer, request.filedir)
+    return {"data": ad.get_embedding()}
+
+
+@app.post("/init_embedding")
+async def init_embedding(request: DataInfo):
+    try:
+        global Embedding
+        Embedding = KKSEmbedding()
+        ad = KKSContentDB(Tokenizer, request.filedir, Embedding)
+        ad.init_embedding()
+        return {"data": "success"}
+    except Exception as e:
+        print(e)
+        return {"data": "error"}
+
+
+@app.post("/database")
+async def get_database(request: DataInfo):
+    if request.Usembedding:
+        global Embedding
+        ad = KKSContentDB(Tokenizer, request.filedir, Embedding)
+    else:
+        ad = KKSContentDB(Tokenizer, request.filedir)
+    return {"data": ad.select_ad()}
+
+
+@app.post("/insert")
+async def Insert_data(request: DataInfo):
+    if request.Usembedding:
+        global Embedding
+        ad = KKSContentDB(Tokenizer, request.filedir, Embedding)
+    else:
+        ad = KKSContentDB(Tokenizer, request.filedir)
+    try:
+        ad.insert_ad(request.data)
+        return {"data": "success"}
+    except Exception as e:
+        print(e)
+        return {"data": "error"}
+
+
+@app.post("/query")
+async def Query_data(request: DataInfo):
+    if request.Usembedding:
+        global Embedding
+        ad = KKSContentDB(Tokenizer, request.filedir, Embedding)
+    else:
+        ad = KKSContentDB(Tokenizer, request.filedir)
+    try:
+        result = ad.query(request.query)
+        print(result)
+        return {"data": result}
+    except Exception as e:
+        print(e)
+        return {"data": "error"}
+
+
+@app.post("/delete")
+async def Delete_data(request: DataInfo):
+    if request.Usembedding:
+        global Embedding
+        ad = KKSContentDB(Tokenizer, request.filedir, Embedding)
+    else:
+        ad = KKSContentDB(Tokenizer, request.filedir)
+    try:
+        ad.delete_ad(request.data)
+        return {"data": "success"}
+    except Exception as e:
+        print(e)
+        return {"data": "error"}
+
+
+@app.post("/delete_database")
+async def Delete_database(request: DataInfo):
+    os.remove(request.filedir)
+    try:
+        return {"data": "success"}
+    except:
+        return {"data": "error"}
+
+
+@app.post("/create_database")
+async def Create_database(request: DataInfo):
+    try:
+        file = "db/" + request.filedir + ".db"
+        ad = KKSContentDB(Tokenizer, file)
+        return {"data": "success"}
+    except:
+        return {"data": "error"}
+
+
+@app.post("/rag")
+async def Rag_data(request: DataInfo):
+    if request.Usembedding:
+        global Embedding
+        ad = KKSContentDB(Tokenizer, request.filedir, Embedding)
+    else:
+        ad = KKSContentDB(Tokenizer, request.filedir)
+    Rag = KKSRag(
+        base_url=config["base_url"],
+        model=config["model"],
+        api_key=config["api_key"],
+    )
+
+    result = ad.query(request.query)
+    if len(result) > 5:
+        context = "\n".join([item[1] for item in result[:5]])
+    else:
+        context = "\n".join([item[1] for item in result])
+
+    if request.stream:
+        async def generate_text(query, context):
+            for char in Rag.Ragresponse(query, context):
+                # 2. 只能 yield，不要 return 带值
+                yield char.content
+
+        return StreamingResponse(
+            generate_text(request.query, context), media_type="text/event-stream"
+        )
+    else:
+        response = Rag.Ragresponse(request.query, context, stream=False)
+        return {"data": response.to_json()['kwargs']['content']}
+    # return {"data":response}
+
+
+@app.post("/upload_file")
+async def Upload_file(
+    file: UploadFile = File(...),
+    filedir: str = Form(...),
+):
+    try:
+        contents = await file.read()
+        with open("FILE/" + file.filename, "wb") as f:
+            f.write(contents)
+        data = FileReader.read_excel("FILE/" + file.filename)
+        print(data)
+        return {"data": data}
+    except Exception as e:
+        print(e)
+        return {"data": "error"}
+
+
+@app.post("/createtask")
+async def Task(request: DataInfo):
+    taskid = str(uuid4())
+    tasklist[taskid] = request
+    return {"taskid": taskid}
+
+
+
+@app.get("/stream_query")
+async def Stream_query(taskid: str):
+    request = tasklist[taskid]
+    async def rag_stream(request):
+        yield f"data: {json.dumps({'type':'message', 'data':'检索中...'})}\n\n"
+        
+        if request.Usembedding:
+            global Embedding
+            ad = KKSContentDB(Tokenizer, request.filedir, Embedding)
         else:
-            raise ValueError("文件只支持.docx、.pdf文件")
-    
+            ad = KKSContentDB(Tokenizer, request.filedir)
+        Rag = KKSRag(
+            base_url=config["base_url"],
+            model=config["model"],
+            api_key=config["api_key"],
+        )
+        result = ad.query(request.query)
+        await asyncio.sleep(0.05)  
+        if len(result) > 5:
+            context = "\n".join([item[1] for item in result[:5]])
+        else:
+            context = "\n".join([item[1] for item in result])
+        
+        yield f"data: {json.dumps({'type':'message', 'data':'检索成功'})}\n\n"
+        await asyncio.sleep(0.05) 
+        yield f"data: {json.dumps({'type':'beginanswer', 'data':'开始回答'})}\n\n"
+        for char in Rag.Ragresponse(request.query, context):
+                # 2. 只能 yield，不要 return 带值
+            yield f"data: {json.dumps({'type': 'answer', 'data': char.content})}\n\n"
+            await asyncio.sleep(0.05) 
+        yield f"data: {json.dumps({'type':'endanswer', 'data':'回答结束'})}\n\n"
+    try:
+        return StreamingResponse(
+            rag_stream(request), media_type="text/event-stream"
+        )
+    except Exception as e:
+        print(e)
+        return {"data": "error"}
 
-    def connectwx(self, group_name):
-        a = DCwx(group_name='返娘家')
-        print("退出可按Ctrl + c, 如果没有找到对应的群，请关闭所有微信窗口重试或检查微信版本是否低于4.0")
-        a.moniter()
 
+if __name__ == "__main__":
+    import uvicorn
 
+    uvicorn.run(app, host="0.0.0.0", port=12250)
 
-a = Base_RAG(api_key="71f9c7ff218f8f7329a95c794a42c149.SfLL8ycOqirgYmvd", _async=False)
-print(a.connectwx(group_name='返娘家'))
-
-
-# chunk = a.file_split(filepath = "./FILE/oo.docx")
-# a.connect_wx("robot_test","test_robot")
-
-
-# import asyncio
-# docs = a.chunk_search(index = 'os_qa_pizza', question ="什么是操作系统")[1]
-# asyncio.run(a.chat("什么是操作系统",docs))
-# print(a.get_index())
