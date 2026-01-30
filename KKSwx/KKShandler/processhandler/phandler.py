@@ -279,7 +279,6 @@ class phandler():
         # Pillow 的 "RGBA" 模式期望的字节顺序是 R, G, B, A
         # Windows DIB 给出的是 B, G, R, A，所以我们需要转换
         image = Image.frombuffer('RGBA', (width, height), pixel_buffer.raw, 'raw', 'BGRA', 0, 1)
-        print(save)
         # 保存为文件
         if save:
             image.save(filename)
@@ -344,7 +343,7 @@ class phandler():
         )
 
         # 保存图像
-        im.save(file_path)
+        # im.save(file_path)
         return im,left,top
         # 清理资源
         win32gui.DeleteObject(save_bitmap.GetHandle())
