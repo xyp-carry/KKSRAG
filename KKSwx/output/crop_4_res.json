@@ -1,0 +1,121 @@
+{
+    "input_path": "crop_4.jpg",
+    "page_index": null,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_textline_orientation": false
+    },
+    "dt_polys": [
+        [
+            [
+                21,
+                17
+            ],
+            [
+                392,
+                17
+            ],
+            [
+                392,
+                29
+            ],
+            [
+                21,
+                29
+            ]
+        ],
+        [
+            [
+                19,
+                34
+            ],
+            [
+                106,
+                34
+            ],
+            [
+                106,
+                50
+            ],
+            [
+                19,
+                50
+            ]
+        ]
+    ],
+    "text_det_params": {
+        "limit_side_len": 64,
+        "limit_type": "min",
+        "thresh": 0.3,
+        "max_side_limit": 4000,
+        "box_thresh": 0.6,
+        "unclip_ratio": 1.5
+    },
+    "text_type": "general",
+    "textline_orientation_angles": [
+        -1,
+        -1
+    ],
+    "text_rec_score_thresh": 0.0,
+    "return_word_box": false,
+    "rec_texts": [
+        "应该是害怕走日本泡沫经济的老路了日本当时不就是房价真",
+        "接掉了好几倍"
+    ],
+    "rec_scores": [
+        0.9883871078491211,
+        0.9959819912910461
+    ],
+    "rec_polys": [
+        [
+            [
+                21,
+                17
+            ],
+            [
+                392,
+                17
+            ],
+            [
+                392,
+                29
+            ],
+            [
+                21,
+                29
+            ]
+        ],
+        [
+            [
+                19,
+                34
+            ],
+            [
+                106,
+                34
+            ],
+            [
+                106,
+                50
+            ],
+            [
+                19,
+                50
+            ]
+        ]
+    ],
+    "rec_boxes": [
+        [
+            21,
+            17,
+            392,
+            29
+        ],
+        [
+            19,
+            34,
+            106,
+            50
+        ]
+    ]
+}

@@ -65,6 +65,10 @@
     <header>
         <nav>
             <button onclick="loadPage('KnowledgeServer.html')" id="btnA" class="active">知识库管理系统</button>
+
+            <button onclick="document.querySelector('iframe').src='http://localhost:8501?mode=analysis'">
+    切换 Streamlit 到分析模式
+</button>
         </nav>
     </header>
 
